@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Supply Chain Pro - V12 (Firebase)</title>
+    <style>
+        :root { --primary: #2563eb; --success: #16a34a; --warning: #d97706; --danger: #dc2626; --dark: #1e293b; --light: #f8fafc; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 20px; background-color: #f1f5f9; color: var(--dark); }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h2 { margin-top: 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 0.9em; }
+        input, select, button { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 1rem; }
+        button { background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+        button:hover { background: #1d4ed8; }
+        button:disabled { background: #cbd5e1; cursor: not-allowed; color: #64748b; }
+        select:disabled, input:disabled { background: #f1f5f9; cursor: not-allowed; color: #64748b; }
+
+        /* Brand Identity Adjustments */
+        .brand-header { text-align: center; margin-bottom: 25px; }
+        .app-logo-large { max-width: 260px; height: auto; object-fit: contain; }
+
+        /* Balanced Dark Container for Header Image */
+        .logo-container-dark { background: #111827; padding: 12px 20px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; }
+        .app-logo-dashboard { height: 75px; width: auto; object-fit: contain; }
+
+        .header-app-brand { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+
+        .admin-box { border-left: 5px solid #8b5cf6; }
+        .admin-nav { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;}
+        .admin-tab { background: #e2e8f0; color: var(--dark); padding: 10px 20px; border-radius: 6px 6px 0 0; cursor: pointer; border: none; font-weight: bold; }
+        .admin-tab.active { background: #8b5cf6; color: white; }
+        .admin-section { display: none; }
+        .admin-section.active { display: block; }
+
+        .supplier-info-box { background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; padding: 12px; margin-bottom: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .info-label { font-size: 0.85em; color: #64748b; margin-bottom: 2px; }
+        .info-value { font-weight: bold; font-size: 1.05rem; color: var(--dark); }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; }
+        th, td { border: 1px solid #cbd5e1; padding: 10px; text-align: center; font-size: 0.9em; }
+        th { background: #e2e8f0; font-weight: bold; }
+        .rank-badge { font-weight: bold; color: #64748b; }
+        .rank-1 { color: #d97706; font-size: 1.1em; }
+
+        .view-section { display: none; }
+        .active-view { display: block; }
+
+        #login-screen { text-align: center; max-width: 450px; margin: 60px auto; background: #111827; color: #f8fafc; }
+        #login-screen h2 { border-bottom: 2px solid #374151; padding-bottom: 12px; }
+        .login-btn { margin-top: 10px; font-size: 1.1rem; padding: 15px; }
+        .logout-btn { background: #ef4444; width: auto; float: right; margin-top: -75px;}
+        .divider { margin: 25px 0; border-top: 2px dashed #4b5563; }
+        #login-error { color: #fca5a5; font-size: 0.9em; min-height: 1.2em; margin-top: 8px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- LOGIN SCREEN -->
+    <div id="login-screen" class="view-section active-view card">
+        <div class="brand-header">
+            <img src="logo.png" alt="Operations Club Logo" class="app-logo-large">
+        </div>
+
+        <h2>Supply Chain Simulation</h2>
+        <p style="color: #94a3b8; margin-bottom: 20px;">Create a team to join the game, or sign back in to your existing team.</p>
+
+        <div class="form-group" style="text-align: left;">
+            <label style="color: #cbd5e1;">Game Slot:</label>
+            <select id="login-slot" style="background: #1f2937; color: white; border-color: #4b5563;"></select>
+        </div>
+        <div class="form-group" style="text-align: left;">
+            <label style="color: #cbd5e1;">Team Name:</label>
+            <input type="text" id="login-team" placeholder="e.g., Red Foxes" autocomplete="username" style="background: #1f2937; color: white; border-color: #4b5563;">
+        </div>
+        <div class="form-group" style="text-align: left;">
+            <label style="color: #cbd5e1;">Password:</label>
+            <input type="password" id="login-password" placeholder="At least 6 characters" autocomplete="current-password" style="background: #1f2937; color: white; border-color: #4b5563;">
+        </div>
+        <button class="login-btn" id="create-btn" onclick="createTeam()">Create New Team</button>
+        <button class="login-btn" id="login-btn" onclick="doLogin()" style="background:#374151; margin-top:12px;">Sign In to Existing Team</button>
+        <div id="login-error"></div>
+
+        <div class="divider"></div>
+        <p style="color: #64748b; font-size: 0.85em;">Team names are unique — if a name is taken, choose another. The controller sets up once by creating the team <strong style="color:#94a3b8;">admin</strong>, then signs in with it each session. Each team can only see and edit their own game.</p>
+    </div>
+
+    <!-- MAIN APP WRAPPER -->
+    <div id="main-app" class="view-section">
+        <header class="card" style="margin-bottom: 20px;">
+            <div class="header-app-brand">
+                <div class="logo-container-dark">
+                    <img src="logo.png" alt="Operations Club Logo" class="app-logo-dashboard">
+                </div>
+                <div style="border-left: 2px solid #e2e8f0; padding-left: 20px; min-height: 70px; display: flex; flex-direction: column; justify-content: center;">
+                    <h1 style="margin:0; font-size: 1.5rem;">Game Phase: <span id="current-week-display">Week 1</span></h1>
+                    <p style="margin:4px 0 0 0; color:#64748b; font-size: 0.95rem;">Logged in as: <strong id="logged-in-user"></strong></p>
+                </div>
+            </div>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </header>
+
+        <!-- ADMIN PANEL -->
+        <div id="admin-panel" class="view-section admin-box">
+            <div class="admin-nav">
+                <button class="admin-tab active" id="tab-controls" onclick="switchAdminTab('controls')">⚙️ Game Controls</button>
+                <button class="admin-tab" id="tab-scores" onclick="switchAdminTab('scores')">🏆 Live Leaderboard</button>
+            </div>
+
+            <!-- TAB 1: Controls -->
+            <div id="admin-controls-section" class="admin-section active">
+                <div class="card">
+                    <h2>🎛️ Parameters & Execution</h2>
+                    <div class="grid-3" style="margin-bottom: 20px;">
+                        <div class="form-group">
+                            <label>Missed Demand Penalty (£):</label>
+                            <input type="number" id="admin-penalty-cost" value="2" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Inventory Holding Cost (£):</label>
+                            <input type="number" id="admin-holding-cost" value="1" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Set Demand (Week <span id="admin-week-target">1</span>):</label>
+                            <input type="number" id="admin-demand" value="40" min="0">
+                        </div>
+                    </div>
+
+                    <button style="background: #8b5cf6; padding: 15px; font-size:1.1rem; width:100%;" id="process-week-btn" onclick="processCurrentWeek()">Lock Teams & Process Week</button>
+                </div>
+
+                <div class="card">
+                    <h2>📋 Team Submission Checklist</h2>
+                    <table id="status-table">
+                        <thead><tr><th>Team Name</th><th>Submission Status</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TAB 2: Leaderboard -->
+            <div id="admin-scores-section" class="admin-section card">
+                <h2>🏆 Live Leaderboard Standings</h2>
+                <button style="background: #10b981; padding: 12px; font-size:1rem; width:auto; margin-bottom: 15px;" onclick="downloadLeaderboardCSV()">⬇️ Download Sorted Leaderboard (CSV)</button>
+                <table id="leaderboard-table">
+                    <thead><tr><th style="width: 80px;">Rank</th><th>Team Name</th><th>Current Cash Balance</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- PLAYER PANEL -->
+        <div id="player-panel" class="view-section">
+            <div class="card">
+                <h2>📦 Place Order (<span class="team-name-display"></span>)</h2>
+                <div id="status-badge-container" style="margin-bottom: 15px; font-weight:bold;"></div>
+
+                <form id="order-form" onsubmit="submitOrder(event)">
+                    <div class="form-group">
+                        <label>Choose Supplier:</label>
+                        <select id="supplier-select" onchange="updateDynamicSupplierDetails()">
+                            <option value="X">Supplier X (No Action)</option>
+                            <option value="A">Supplier A (Instant, High Cost)</option>
+                            <option value="B">Supplier B (1 Wk, Medium Cost)</option>
+                            <option value="C">Supplier C (3 Wks, Low Cost)</option>
+                        </select>
+                    </div>
+
+                    <div class="supplier-info-box">
+                        <div><div class="info-label">Lead Time</div><div class="info-value" id="dynamic-lead-time">0 Weeks</div></div>
+                        <div><div class="info-label">Cost Per Unit</div><div class="info-value" id="dynamic-cost">£0.00</div></div>
+                        <div style="grid-column: span 2;"><div class="info-label">Order Limits</div><div class="info-value" id="dynamic-limit" style="font-size:0.9rem;">0 Units Max</div></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Quantity to Order:</label>
+                        <div id="qty-input-container">
+                            <input type="number" id="quantity-input" min="0" value="0" disabled>
+                        </div>
+                    </div>
+                    <button type="submit" id="submit-order-btn">Submit Decisions</button>
+                </form>
+            </div>
+
+            <!-- Ledger Matrix Section -->
+            <div class="card">
+                <h2>📊 Internal Performance Matrix - <span class="team-name-display"></span></h2>
+                <button style="background: #10b981; padding: 12px; font-size:1rem; width:auto; margin-bottom:15px;" onclick="downloadPlayerMatrixCSV()">⬇️ Download My Performance Matrix (CSV)</button>
+                <div style="overflow-x: auto;">
+                    <table id="game-ledger">
+                        <thead><tr id="header-weeks"><th style="text-align: left;">Metric</th></tr></thead>
+                        <tbody id="ledger-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+// =====================================================================
+//  FIREBASE SETUP
+// =====================================================================
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+import {
+    getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
+    signOut, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+import {
+    getFirestore, doc, getDoc, getDocs, setDoc, updateDoc,
+    collection, onSnapshot, writeBatch
+} from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+
+// -------- THE ONLY THING YOU NEED TO EDIT --------
+// Paste your Firebase web config here.
+// Firebase console -> Project settings -> Your apps -> Web app -> "SDK setup and configuration".
+// (This config is public by design and safe to ship. Security comes from
+//  Firebase Auth + the Firestore rules, not from hiding these values.)
+const firebaseConfig = {
+    apiKey: "AIzaSyDQUiInWqByaPVxnKHvy51-7JlRu-fCAew",
+    authDomain: "supply-chain-simulation-a0904.firebaseapp.com",
+    projectId: "supply-chain-simulation-a0904",
+    storageBucket: "supply-chain-simulation-a0904.firebasestorage.app",
+    messagingSenderId: "1053788548199",
+    appId: "1:1053788548199:web:44a924381e06d19ace38c2"
+};
+
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
+
+// =====================================================================
+//  GAME CONFIGURATION  (unchanged from the original)
+// =====================================================================
+// ----- SLOTS: 10 live game slots + 10 trial slots. Edit freely. -----
+const SLOTS = [
+    ...Array.from({ length: 10 }, (_, i) => `Slot ${i + 1}`),
+    ...Array.from({ length: 10 }, (_, i) => `Trial ${i + 1}`)
+];
+
+let GAME_ID = null;                  // set at login to the chosen slot's id
+const TEAM_EMAIL_DOMAIN = "scgame.local";  // team names become logins under this domain
+const ADMIN_TEAM_NAME = "admin";     // the controller of a slot signs in with this team name
+let TOTAL_WEEKS = 8;                  // set per slot at login: 5 for trials, 15 for live
+const STARTING_CASH = 100.00;
+const REVENUE_PER_UNIT = 5.00;
+
+const SUPPLIERS = {
+    'X': { cost: 0.00, leadTime: 0, limitType: 'fixed',    limitVal: 0 },
+    'A': { cost: 5.00, leadTime: 0, limitType: 'dropdown', limitVal: 10 },
+    'B': { cost: 3.00, leadTime: 1, limitType: 'number',   limitVal: 20 },
+    'C': { cost: 1.00, leadTime: 3, limitType: 'number',   limitVal: Infinity }
+};
+
+const METRIC_SCHEMA = [
+    { label: "Starting Cash Balance", key: "startingCash" }, { label: "Choose Supplier", key: "supplier" },
+    { label: "Phones Ordered", key: "orderedQty" }, { label: "Units Delivered this week", key: "deliveredQty" },
+    { label: "Total Order Cost (£)", key: "totalOrderCost" }, { label: "Beginning Inventory", key: "beginningInventory" },
+    { label: "Market Demand", key: "demand" },
+    { label: "Number of Sales", key: "sales" }, { label: "Ending Inventory on hand", key: "endingInventory" },
+    { label: "Cost of Missed Demand (£)", key: "missedDemandCost" }, { label: "Inventory Holding Cost (£)", key: "holdingCost" },
+    { label: "Ending Cash Balance (£)", key: "endingCash" }
+];
+
+// Fresh ledger for a brand-new team (must match the structure the rules validate)
+function generateTeamStructure() {
+    const s = { submissions: {}, lockedWeeks: {}, weeklyStats: {} };
+    for (let w = 1; w <= TOTAL_WEEKS; w++) {
+        s.submissions[w] = { supplier: 'X', qty: 0, submitted: false };
+        s.lockedWeeks[w] = false;
+        s.weeklyStats[w] = {
+            startingCash: w === 1 ? STARTING_CASH : 0, demand: 0, supplier: '-',
+            orderedQty: 0, deliveredQty: 0, totalOrderCost: 0,
+            beginningInventory: w === 1 ? 5 : 0, availableForSale: 0, sales: 0,
+            endingInventory: 0, missedDemand: 0, missedDemandCost: 0,
+            holdingCost: 0, revenue: 0, endingCash: w === 1 ? STARTING_CASH : 0
+        };
+    }
+    return s;
+}
+
+// Turn a display team name into a stable login local-part, e.g. "Red Foxes" -> "red-foxes"
+function slugifyTeam(name) {
+    return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+// Look up a slot's display label from its id (slug)
+function slotLabel(id) {
+    return SLOTS.find(s => slugifyTeam(s) === id) || id;
+}
+
+// Trial slots run 5 weeks; live slots run 15 weeks
+function weeksForSlot(slotId) {
+    return /^trial/i.test(slotId) ? 5 : 15;
+}
+
+// =====================================================================
+//  LIVE STATE  (mirrors Firestore via real-time listeners)
+// =====================================================================
+let currentUserRole = null;   // 'admin' | 'player'
+let myUid           = null;
+let activeTeam      = null;    // this player's team name (display)
+let currentWeek     = 1;
+let gameSettings    = { missedPenalty: 2, holdingCost: 1, demands: {} };
+let teamsData       = {};      // { uid: teamDoc }  -- admin view (all teams)
+let myTeamData      = null;    // this player's own team doc
+let listeners       = [];      // active onSnapshot unsubscribers
+let adminInputsPrefilled = false;
+
+function clearListeners() {
+    listeners.forEach(unsub => { try { unsub(); } catch(e){} });
+    listeners = [];
+}
+
+// =====================================================================
+//  AUTH
+// =====================================================================
+async function doLogin() {
+    const slotId = document.getElementById('login-slot').value;
+    const name = document.getElementById('login-team').value.trim();
+    const pass = document.getElementById('login-password').value;
+    const errEl = document.getElementById('login-error');
+    errEl.innerText = "";
+    if (!slotId) { errEl.innerText = "Choose your game slot."; return; }
+    if (!name || !pass) { errEl.innerText = "Enter your team name and password."; return; }
+
+    const slug = slugifyTeam(name);
+    if (!slug) { errEl.innerText = "Please enter a valid team name."; return; }
+    const email = slotId + "__" + slug + "@" + TEAM_EMAIL_DOMAIN;
+
+    setLoginBusy(true, 'login-btn', "Signing in...");
+    try {
+        await signInWithEmailAndPassword(auth, email, pass);
+        // onAuthStateChanged takes over from here
+    } catch (e) {
+        errEl.innerText = friendlyAuthError(e.code);
+    } finally {
+        setLoginBusy(false, 'login-btn', "Sign In to Existing Team");
+    }
+}
+
+async function createTeam() {
+    const slotId = document.getElementById('login-slot').value;
+    const name = document.getElementById('login-team').value.trim();
+    const pass = document.getElementById('login-password').value;
+    const errEl = document.getElementById('login-error');
+    errEl.innerText = "";
+
+    if (!slotId) { errEl.innerText = "Choose your game slot."; return; }
+    if (!name || !pass) { errEl.innerText = "Enter a team name and a password."; return; }
+    if (pass.length < 6) { errEl.innerText = "Password must be at least 6 characters."; return; }
+
+    const slug = slugifyTeam(name);
+    if (!slug) { errEl.innerText = "Please choose a team name with letters or numbers."; return; }
+    const email = slotId + "__" + slug + "@" + TEAM_EMAIL_DOMAIN;
+    const isAdminSetup = (slug === ADMIN_TEAM_NAME);
+    TOTAL_WEEKS = weeksForSlot(slotId);   // 5 (trial) or 15 (live) -- sizes the ledger we create
+
+    setLoginBusy(true, 'create-btn', isAdminSetup ? "Creating controller..." : "Creating team...");
+    try {
+        const cred = await createUserWithEmailAndPassword(auth, email, pass);
+        if (!isAdminSetup) {
+            // Create this team's own game document in this slot (rules require a clean ledger).
+            // The slot's controller ("admin") has no team doc -- it manages the slot instead.
+            await setDoc(doc(db, 'games', slotId, 'teams', cred.user.uid), {
+                teamName: name,
+                ...generateTeamStructure()
+            });
+        }
+        // onAuthStateChanged routes into the correct panel
+    } catch (e) {
+        errEl.innerText = friendlyAuthError(e.code);
+    } finally {
+        setLoginBusy(false, 'create-btn', "Create New Team");
+    }
+}
+
+// Creates the shared game doc the first time the controller signs in.
+async function ensureGameDoc() {
+    const ref = doc(db, 'games', GAME_ID);
+    try {
+        const snap = await getDoc(ref);
+        if (!snap.exists()) {
+            await setDoc(ref, {
+                currentWeek: 1,
+                status: "active",
+                settings: { missedPenalty: 2, holdingCost: 1, demands: {} }
+            });
+        }
+    } catch (e) {
+        console.error("ensureGameDoc:", e);
+    }
+}
+
+function setLoginBusy(busy, btnId, label) {
+    document.getElementById('create-btn').disabled = busy;
+    document.getElementById('login-btn').disabled = busy;
+    document.getElementById(btnId).innerText = label;
+}
+
+async function logout() {
+    await signOut(auth);
+}
+
+function friendlyAuthError(code) {
+    switch (code) {
+        case 'auth/email-already-in-use': return "That team name is already taken. Pick another, or use Sign In if it's yours.";
+        case 'auth/weak-password':        return "Password must be at least 6 characters.";
+        case 'auth/invalid-credential':
+        case 'auth/wrong-password':
+        case 'auth/user-not-found':   return "Team name or password is incorrect. (New here? Use Create New Team.)";
+        case 'auth/invalid-email':    return "That team name can't be used. Try letters and numbers only.";
+        case 'auth/too-many-requests':return "Too many attempts. Wait a moment and try again.";
+        case 'auth/network-request-failed': return "Network problem. Check your connection.";
+        default: return "Sign-in failed (" + code + ").";
+    }
+}
+
+onAuthStateChanged(auth, (user) => {
+    clearListeners();
+    teamsData = {}; myTeamData = null; adminInputsPrefilled = false;
+
+    if (!user) {
+        // logged out -> show login screen
+        document.getElementById('login-screen').classList.add('active-view');
+        document.getElementById('main-app').classList.remove('active-view');
+        document.getElementById('admin-panel').classList.remove('active-view');
+        document.getElementById('player-panel').classList.remove('active-view');
+        document.getElementById('login-password').value = '';
+        switchAdminTab('controls');
+        return;
+    }
+
+    myUid = user.uid;
+    // Recover the slot and role from the login, e.g. "slot-1__red@..." -> slot "slot-1", name "red"
+    const local = (user.email || "").split('@')[0];
+    const sep = local.indexOf('__');
+    GAME_ID = sep >= 0 ? local.slice(0, sep) : local;
+    const namePart = sep >= 0 ? local.slice(sep + 2) : '';
+    const isAdmin = (namePart === ADMIN_TEAM_NAME);
+    TOTAL_WEEKS = weeksForSlot(GAME_ID);
+
+    document.getElementById('login-screen').classList.remove('active-view');
+    document.getElementById('main-app').classList.add('active-view');
+
+    if (isAdmin) {
+        currentUserRole = 'admin';
+        document.getElementById('logged-in-user').innerText = `admin (controller) · ${slotLabel(GAME_ID)}`;
+        document.getElementById('admin-panel').classList.add('active-view');
+        document.getElementById('player-panel').classList.remove('active-view');
+        ensureGameDoc();      // create the shared game on first controller login
+        listenGameDoc();
+        listenAllTeams();
+    } else {
+        currentUserRole = 'player';
+        document.getElementById('admin-panel').classList.remove('active-view');
+        document.getElementById('player-panel').classList.add('active-view');
+        listenGameDoc();
+        listenMyTeam();
+    }
+});
+
+// =====================================================================
+//  REAL-TIME LISTENERS
+// =====================================================================
+function listenGameDoc() {
+    const ref = doc(db, 'games', GAME_ID);
+    const unsub = onSnapshot(ref, (snap) => {
+        if (!snap.exists()) {
+            document.getElementById('current-week-display').innerText = "Not set up";
+            return;
+        }
+        const d = snap.data();
+        currentWeek  = d.currentWeek || 1;
+        gameSettings = d.settings || gameSettings;
+
+        document.getElementById('current-week-display').innerText =
+            currentWeek <= TOTAL_WEEKS ? `Week ${currentWeek}` : "Game Over";
+
+        if (currentUserRole === 'admin') {
+            document.getElementById('admin-week-target').innerText =
+                currentWeek <= TOTAL_WEEKS ? currentWeek : TOTAL_WEEKS;
+            if (!adminInputsPrefilled) {
+                document.getElementById('admin-penalty-cost').value = gameSettings.missedPenalty ?? 2;
+                document.getElementById('admin-holding-cost').value = gameSettings.holdingCost ?? 1;
+                adminInputsPrefilled = true;
+            }
+            renderAdminControlsPanel();
+            renderAdminLeaderboard();
+        } else {
+            updateUI();
+        }
+    }, (err) => console.error("game doc listener:", err));
+    listeners.push(unsub);
+}
+
+function listenAllTeams() {        // admin only
+    const ref = collection(db, 'games', GAME_ID, 'teams');
+    const unsub = onSnapshot(ref, (qs) => {
+        teamsData = {};
+        qs.forEach(s => { teamsData[s.id] = s.data(); });
+        renderAdminControlsPanel();
+        renderAdminLeaderboard();
+    }, (err) => console.error("teams listener:", err));
+    listeners.push(unsub);
+}
+
+function listenMyTeam() {          // player only
+    const ref = doc(db, 'games', GAME_ID, 'teams', myUid);
+    const unsub = onSnapshot(ref, (snap) => {
+        if (!snap.exists()) {
+            document.getElementById('status-badge-container').innerHTML =
+                `<span style="color:var(--danger)">No team is set up for this account. Please contact the controller.</span>`;
+            return;
+        }
+        myTeamData = snap.data();
+        activeTeam = myTeamData.teamName;
+        document.querySelectorAll('.team-name-display').forEach(el => el.innerText = activeTeam);
+        document.getElementById('logged-in-user').innerText = `${activeTeam} · ${slotLabel(GAME_ID)}`;
+        updateUI();
+    }, (err) => console.error("my team listener:", err));
+    listeners.push(unsub);
+}
+
+// =====================================================================
+//  ADMIN TABS
+// =====================================================================
+function switchAdminTab(tabName) {
+    const tc = document.getElementById('tab-controls');
+    const ts = document.getElementById('tab-scores');
+    const sc = document.getElementById('admin-controls-section');
+    const ss = document.getElementById('admin-scores-section');
+    if (!tc || !ts || !sc || !ss) return;
+
+    tc.classList.remove('active'); ts.classList.remove('active');
+    sc.classList.remove('active'); ss.classList.remove('active');
+
+    if (tabName === 'controls') {
+        tc.classList.add('active'); sc.classList.add('active');
+        renderAdminControlsPanel();
+    } else {
+        ts.classList.add('active'); ss.classList.add('active');
+        renderAdminLeaderboard();
+    }
+}
+
+// =====================================================================
+//  PLAYER: ORDER FORM
+// =====================================================================
+function updateDynamicSupplierDetails() {
+    const s = document.getElementById('supplier-select').value;
+    const info = SUPPLIERS[s];
+    const container = document.getElementById('qty-input-container');
+
+    let isFrozen = false;
+    if (myTeamData) {
+        isFrozen = myTeamData.lockedWeeks?.[currentWeek] ||
+                   myTeamData.submissions?.[currentWeek]?.submitted ||
+                   currentWeek > TOTAL_WEEKS;
+    }
+
+    document.getElementById('dynamic-lead-time').innerText = `${info.leadTime} Week${info.leadTime !== 1 ? 's' : ''}`;
+    document.getElementById('dynamic-cost').innerText = `£${info.cost.toFixed(2)}`;
+
+    if (info.limitType === 'fixed') {
+        document.getElementById('dynamic-limit').innerText = "0 Units (Action Paused)";
+        container.innerHTML = `<input type="number" id="quantity-input" value="0" disabled>`;
+    } else if (info.limitType === 'dropdown') {
+        document.getElementById('dynamic-limit').innerText = `Max ${info.limitVal} Units`;
+        let options = "";
+        for (let i = 0; i <= info.limitVal; i++) options += `<option value="${i}">${i}</option>`;
+        container.innerHTML = `<select id="quantity-input" ${isFrozen ? 'disabled' : ''}>${options}</select>`;
+    } else {
+        let limitText = info.limitVal === Infinity ? "Unlimited" : `Max ${info.limitVal} Units`;
+        document.getElementById('dynamic-limit').innerText = limitText;
+        let maxAttr = info.limitVal === Infinity ? "" : `max="${info.limitVal}"`;
+        container.innerHTML = `<input type="number" id="quantity-input" min="0" ${maxAttr} value="0" ${isFrozen ? 'disabled' : ''} required>`;
+    }
+}
+
+function updateUI() {
+    if (currentUserRole !== 'player' || !myTeamData) return;
+
+    let isLockedByAdmin   = myTeamData.lockedWeeks?.[currentWeek] || currentWeek > TOTAL_WEEKS;
+    let isSubmitted       = myTeamData.submissions?.[currentWeek]?.submitted;
+    let isFrozen          = isLockedByAdmin || isSubmitted;
+
+    document.getElementById('supplier-select').disabled = isFrozen;
+    document.getElementById('submit-order-btn').disabled = isFrozen;
+
+    // Reflect any saved choice for the current week
+    const sub = myTeamData.submissions?.[currentWeek];
+    if (sub && (sub.submitted || sub.supplier)) {
+        document.getElementById('supplier-select').value = sub.supplier || 'X';
+    }
+
+    const badge = document.getElementById('status-badge-container');
+    if (isLockedByAdmin) {
+        badge.innerHTML = `<span style="color:var(--danger)">🔒 Locked / Awaiting Next Week</span>`;
+    } else if (isSubmitted) {
+        badge.innerHTML = `<span style="color:var(--warning)">⏳ Decisions Submitted / Awaiting Admin</span>`;
+    } else {
+        badge.innerHTML = `<span style="color:var(--success)">🔓 Open for Input</span>`;
+    }
+
+    updateDynamicSupplierDetails();
+
+    const qtyEl = document.getElementById('quantity-input');
+    if (sub && qtyEl && sub.qty !== undefined) qtyEl.value = sub.qty;
+    if (isFrozen && qtyEl) qtyEl.disabled = true;
+
+    renderLedger();
+}
+
+async function submitOrder(e) {
+    e.preventDefault();
+    if (!myTeamData) return;
+    if (myTeamData.lockedWeeks?.[currentWeek] || myTeamData.submissions?.[currentWeek]?.submitted) return;
+
+    const supplier = document.getElementById('supplier-select').value;
+    let qty = parseInt(document.getElementById('quantity-input').value) || 0;
+
+    if (SUPPLIERS[supplier].limitVal !== Infinity && qty > SUPPLIERS[supplier].limitVal) {
+        alert(`Error: Exceeded max limits for Supplier ${supplier}`);
+        return;
+    }
+
+    const btn = document.getElementById('submit-order-btn');
+    btn.disabled = true;
+    try {
+        const ref = doc(db, 'games', GAME_ID, 'teams', myUid);
+        await updateDoc(ref, {
+            ['submissions.' + currentWeek]: { supplier, qty, submitted: true }
+        });
+        alert(`Order Locked and Submitted for Week ${currentWeek}!`);
+        // onSnapshot will re-render and keep it frozen
+    } catch (err) {
+        alert("Could not submit your order: " + (err.code || err.message));
+        btn.disabled = false;
+    }
+}
+
+// Formats one matrix cell. Demand stays hidden ("-") until the admin locks the week.
+function metricCell(team, w, m) {
+    let val = team.weeklyStats[w][m.key];
+    if (m.key === 'demand') {
+        return team.lockedWeeks?.[w] ? String(val) : '-';
+    }
+    if (typeof val === 'number' && (m.key.includes('Cost') || m.key.includes('Cash'))) {
+        return val.toFixed(2);
+    }
+    return val;
+}
+
+function renderLedger() {
+    if (!myTeamData) return;
+    let team = myTeamData;
+    let html = ``;
+
+    let headers = `<th style="text-align: left; width: 200px;">Metric</th>`;
+    for (let w = 1; w <= TOTAL_WEEKS; w++) headers += `<th style="${w === currentWeek ? 'background: #bfdbfe;' : ''}">Wk ${w}</th>`;
+    document.getElementById('header-weeks').innerHTML = headers;
+
+    METRIC_SCHEMA.forEach(m => {
+        html += `<tr><td style="text-align: left;">${m.label}</td>`;
+        for (let w = 1; w <= TOTAL_WEEKS; w++) {
+            html += `<td style="${w === currentWeek ? 'background: #eff6ff;' : ''}">${metricCell(team, w, m)}</td>`;
+        }
+        html += `</tr>`;
+    });
+    document.getElementById('ledger-body').innerHTML = html;
+}
+
+// =====================================================================
+//  ADMIN: COMPUTATION ENGINE  (same math as the original)
+// =====================================================================
+async function processCurrentWeek() {
+    if (currentWeek > TOTAL_WEEKS) return alert("Game Over.");
+
+    const missedPenalty = parseFloat(document.getElementById('admin-penalty-cost').value) || 0;
+    const holdingCost   = parseFloat(document.getElementById('admin-holding-cost').value) || 0;
+    const currentDemand = parseInt(document.getElementById('admin-demand').value) || 0;
+
+    const btn = document.getElementById('process-week-btn');
+    btn.disabled = true; btn.innerText = "Processing...";
+
+    try {
+        // Pull a fresh, consistent snapshot of every team
+        const teamsCol = collection(db, 'games', GAME_ID, 'teams');
+        const snap = await getDocs(teamsCol);
+
+        const batch = writeBatch(db);
+
+        snap.forEach(docSnap => {
+            let team  = docSnap.data();
+            let stats = team.weeklyStats[currentWeek];
+            let sub   = team.submissions[currentWeek] || { supplier: 'X', qty: 0, submitted: false };
+
+            stats.demand     = currentDemand;
+            stats.supplier   = sub.submitted ? sub.supplier : 'X';
+            stats.orderedQty = sub.submitted ? sub.qty : 0;
+
+            stats.deliveredQty = 0;
+            for (let w = 1; w <= currentWeek; w++) {
+                let pastSub = team.submissions[w];
+                if (pastSub && pastSub.submitted) {
+                    let lead = SUPPLIERS[pastSub.supplier].leadTime;
+                    if (w + lead === currentWeek) stats.deliveredQty += pastSub.qty;
+                }
+            }
+
+            stats.totalOrderCost = stats.orderedQty * (SUPPLIERS[stats.supplier] ? SUPPLIERS[stats.supplier].cost : 0);
+
+            if (currentWeek > 1) {
+                stats.beginningInventory = team.weeklyStats[currentWeek - 1].endingInventory;
+                stats.startingCash       = team.weeklyStats[currentWeek - 1].endingCash;
+            }
+
+            stats.availableForSale = stats.beginningInventory + stats.deliveredQty;
+            stats.sales            = Math.min(stats.demand, stats.availableForSale);
+            stats.endingInventory  = stats.availableForSale - stats.sales;
+            stats.missedDemand     = Math.max(0, stats.demand - stats.availableForSale);
+            stats.missedDemandCost = stats.missedDemand * missedPenalty;
+            stats.holdingCost      = stats.endingInventory * holdingCost;
+            stats.revenue          = stats.sales * REVENUE_PER_UNIT;
+            stats.endingCash       = stats.startingCash - stats.totalOrderCost - stats.missedDemandCost - stats.holdingCost + stats.revenue;
+
+            team.lockedWeeks[currentWeek] = true;
+
+            if (currentWeek < TOTAL_WEEKS) {
+                team.weeklyStats[currentWeek + 1].beginningInventory = stats.endingInventory;
+                team.weeklyStats[currentWeek + 1].startingCash       = stats.endingCash;
+            }
+
+            const ref = doc(db, 'games', GAME_ID, 'teams', docSnap.id);
+            batch.update(ref, {
+                weeklyStats: team.weeklyStats,
+                lockedWeeks: team.lockedWeeks
+            });
+        });
+
+        // Persist settings + advance the week on the game doc
+        const gameRef = doc(db, 'games', GAME_ID);
+        const newDemands = { ...(gameSettings.demands || {}), [currentWeek]: currentDemand };
+        batch.update(gameRef, {
+            'settings.missedPenalty': missedPenalty,
+            'settings.holdingCost': holdingCost,
+            'settings.demands': newDemands,
+            currentWeek: currentWeek + 1
+        });
+
+        await batch.commit();
+        alert((currentWeek + 1) <= TOTAL_WEEKS ? "Week Processed!" : "Game Complete!");
+        // listeners refresh all screens automatically
+    } catch (err) {
+        alert("Processing failed: " + (err.code || err.message));
+    } finally {
+        btn.disabled = false; btn.innerText = "Lock Teams & Process Week";
+    }
+}
+
+// =====================================================================
+//  ADMIN: RENDERING
+// =====================================================================
+function renderAdminControlsPanel() {
+    let html = "";
+    let uids = Object.keys(teamsData);
+    if (uids.length === 0) {
+        html = `<tr><td colspan="2" style="color:#64748b;">No teams have been set up yet.</td></tr>`;
+    } else {
+        let maxWk = currentWeek > TOTAL_WEEKS ? TOTAL_WEEKS : currentWeek;
+        uids.forEach(uid => {
+            let t = teamsData[uid];
+            let subStatus = t.submissions?.[maxWk]?.submitted ? "✅ Submitted" : "⏳ Pending";
+            html += `<tr><td><strong>${t.teamName}</strong></td><td>${subStatus}</td></tr>`;
+        });
+    }
+    const tbody = document.querySelector('#status-table tbody');
+    if (tbody) tbody.innerHTML = html;
+}
+
+function getSortedLeaderboardArray() {
+    let uids = Object.keys(teamsData);
+    let targetWeek = currentWeek > TOTAL_WEEKS ? TOTAL_WEEKS : currentWeek;
+
+    return uids.map(uid => {
+        let data = teamsData[uid];
+        let balance = data.lockedWeeks?.[targetWeek]
+            ? data.weeklyStats[targetWeek].endingCash
+            : data.weeklyStats[targetWeek].startingCash;
+        return { name: data.teamName, cashBalance: balance };
+    }).sort((a, b) => b.cashBalance - a.cashBalance);
+}
+
+function renderAdminLeaderboard() {
+    let html = "";
+    let sortedTeams = getSortedLeaderboardArray();
+
+    if (sortedTeams.length === 0) {
+        html = `<tr><td colspan="3" style="color:#64748b;">No teams set up yet.</td></tr>`;
+    } else {
+        sortedTeams.forEach((team, index) => {
+            let rank = index + 1;
+            let rankClass = rank === 1 ? 'rank-badge rank-1' : 'rank-badge';
+            let rankDisplay = rank === 1 ? '👑 1' : rank;
+            html += `<tr>
+                <td class="${rankClass}">${rankDisplay}</td>
+                <td><strong>${team.name}</strong></td>
+                <td>£${team.cashBalance.toFixed(2)}</td>
+            </tr>`;
+        });
+    }
+    const tbody = document.querySelector('#leaderboard-table tbody');
+    if (tbody) tbody.innerHTML = html;
+}
+
+// =====================================================================
+//  EXPORT UTILITIES
+// =====================================================================
+function triggerBrowserDownload(csvContent, filename) {
+    const encodedUri = encodeURI("data:text/csv;charset=utf-8," + csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function downloadLeaderboardCSV() {
+    let sortedList = getSortedLeaderboardArray();
+    if (sortedList.length === 0) return alert("No team data available to download.");
+
+    let csv = "Rank,Team Name,Final Cash Balance\n";
+    sortedList.forEach((team, idx) => {
+        csv += `${idx + 1},"${team.name.replace(/"/g, '""')}",${team.cashBalance.toFixed(2)}\n`;
+    });
+    triggerBrowserDownload(csv, "Simulation_Leaderboard_Final.csv");
+}
+
+function downloadPlayerMatrixCSV() {
+    if (!myTeamData) return;
+    let team = myTeamData;
+
+    let csv = "Metric";
+    for (let w = 1; w <= TOTAL_WEEKS; w++) csv += `,Week ${w}`;
+    csv += "\n";
+
+    METRIC_SCHEMA.forEach(m => {
+        let rowStr = `"${m.label}"`;
+        for (let w = 1; w <= TOTAL_WEEKS; w++) {
+            rowStr += `,${metricCell(team, w, m)}`;
+        }
+        csv += rowStr + "\n";
+    });
+    triggerBrowserDownload(csv, `${(activeTeam || 'team').replace(/\s+/g, '_')}_Performance_Matrix.csv`);
+}
+
+// =====================================================================
+//  EXPOSE HANDLERS USED BY INLINE onclick / onsubmit / onchange
+//  (module scope is not global, so we attach them to window)
+// =====================================================================
+window.doLogin = doLogin;
+window.createTeam = createTeam;
+window.logout = logout;
+window.switchAdminTab = switchAdminTab;
+window.processCurrentWeek = processCurrentWeek;
+window.updateDynamicSupplierDetails = updateDynamicSupplierDetails;
+window.submitOrder = submitOrder;
+window.downloadLeaderboardCSV = downloadLeaderboardCSV;
+window.downloadPlayerMatrixCSV = downloadPlayerMatrixCSV;
+
+// Populate the slot dropdown, grouped into Live and Trial slots
+(function populateSlots() {
+    const sel = document.getElementById('login-slot');
+    if (!sel) return;
+    const isTrial = s => /^trial/i.test(s);
+    const opt = s => `<option value="${slugifyTeam(s)}">${s}</option>`;
+    const live = SLOTS.filter(s => !isTrial(s));
+    const trial = SLOTS.filter(isTrial);
+    let html = '';
+    if (live.length)  html += `<optgroup label="Live Slots">${live.map(opt).join('')}</optgroup>`;
+    if (trial.length) html += `<optgroup label="Trial Slots">${trial.map(opt).join('')}</optgroup>`;
+    sel.innerHTML = html;
+})();
+
+// Allow pressing Enter in the password field to sign in
+document.getElementById('login-password').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') doLogin();
+});
+</script>
+</body>
+</html>
