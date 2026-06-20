@@ -57,6 +57,33 @@
         .logout-btn { background: #ef4444; width: auto; float: right; margin-top: -75px;}
         .divider { margin: 25px 0; border-top: 2px dashed #4b5563; }
         #login-error { color: #fca5a5; font-size: 0.9em; min-height: 1.2em; margin-top: 8px; }
+
+        /* Info-icon tooltips on matrix row labels */
+        .metric-label { display: inline-flex; align-items: center; gap: 6px; }
+        .metric-info {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 18px; height: 18px; border-radius: 50%;
+            background: #e2e8f0; color: #475569;
+            font-size: 12px; font-weight: bold; font-family: serif;
+            cursor: help; position: relative;
+            user-select: none; -webkit-tap-highlight-color: transparent;
+        }
+        .metric-info:hover, .metric-info:focus { background: #2563eb; color: white; outline: none; }
+        .metric-info::after {
+            content: attr(data-help);
+            position: absolute; top: calc(100% + 8px); left: 0;
+            min-width: 220px; max-width: 280px;
+            background: #1e293b; color: #f8fafc;
+            font: 400 12px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            text-align: left; white-space: normal;
+            padding: 10px 12px; border-radius: 6px;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+            opacity: 0; visibility: hidden; pointer-events: none;
+            transition: opacity 0.12s ease;
+            z-index: 50;
+        }
+        .metric-info:hover::after, .metric-info:focus::after { opacity: 1; visibility: visible; }
+        .matrix-hint { font-size: 0.85em; color: #64748b; margin: -5px 0 12px 0; }
     </style>
 </head>
 <body>
@@ -192,8 +219,9 @@
             <!-- Ledger Matrix Section -->
             <div class="card">
                 <h2>📊 Internal Performance Matrix - <span class="team-name-display"></span></h2>
+                <p class="matrix-hint">Hover (or tap on mobile) the <span class="metric-info" style="position:static; cursor:default;">i</span> next to each row to see how that metric is calculated.</p>
                 <button style="background: #10b981; padding: 12px; font-size:1rem; width:auto; margin-bottom:15px;" onclick="downloadPlayerMatrixCSV()">⬇️ Download My Performance Matrix (CSV)</button>
-                <div style="overflow-x: auto;">
+                <div style="overflow-x: auto; overflow-y: visible;">
                     <table id="game-ledger">
                         <thead><tr id="header-weeks"><th style="text-align: left;">Metric</th></tr></thead>
                         <tbody id="ledger-body"></tbody>
@@ -250,7 +278,9 @@ const TEAM_EMAIL_DOMAIN = "scgame.local";  // team names become logins under thi
 const ADMIN_TEAM_NAME = "admin";     // the controller of a slot signs in with this team name
 let TOTAL_WEEKS = 8;                  // set per slot at login: 5 for trials, 15 for live
 const STARTING_CASH = 100.00;
-const REVENUE_PER_UNIT = 5.00;
+const REVENUE_PER_UNIT = 6.00;       // Selling price per unit. Set above the most expensive
+                                     // supplier (A=£5) so every supplier yields a positive
+                                     // margin: A=£1, B=£3, C=£5  -- mirroring the lead-time tradeoff.
 
 const SUPPLIERS = {
     'X': { cost: 0.00, leadTime: 0, limitType: 'fixed',    limitVal: 0 },
@@ -260,13 +290,34 @@ const SUPPLIERS = {
 };
 
 const METRIC_SCHEMA = [
-    { label: "Starting Cash Balance", key: "startingCash" }, { label: "Choose Supplier", key: "supplier" },
-    { label: "Phones Ordered", key: "orderedQty" }, { label: "Units Delivered this week", key: "deliveredQty" },
-    { label: "Total Order Cost (£)", key: "totalOrderCost" }, { label: "Beginning Inventory", key: "beginningInventory" },
-    { label: "Market Demand", key: "demand" },
-    { label: "Number of Sales", key: "sales" }, { label: "Ending Inventory on hand", key: "endingInventory" },
-    { label: "Cost of Missed Demand (£)", key: "missedDemandCost" }, { label: "Inventory Holding Cost (£)", key: "holdingCost" },
-    { label: "Ending Cash Balance (£)", key: "endingCash" }
+    { label: "Starting Cash Balance", key: "startingCash",
+      help: "Cash you start the week with. Equals last week's Ending Cash. Week 1 begins with the starting balance set by the game." },
+    { label: "Choose Supplier", key: "supplier",
+      help: "Supplier you ordered from. X = no order. A = instant delivery. B = 1-week delay. C = 3-week delay. Faster suppliers usually cost more per unit." },
+    { label: "Phones Ordered", key: "orderedQty",
+      help: "Units you placed an order for this week. You are charged immediately, even if delivery is delayed by lead time." },
+    { label: "Units Delivered this week", key: "deliveredQty",
+      help: "Units that physically arrived this week. Could be from this week's order (A), last week's (B), or three weeks ago (C). Example: if you ordered 20 from B last week, they show up here this week." },
+    { label: "Total Order Cost (£)", key: "totalOrderCost",
+      help: "Ordered units × supplier's cost per unit. Paid this week, regardless of when delivery arrives. Example: 10 units from a £3-per-unit supplier = £30." },
+    { label: "Beginning Inventory", key: "beginningInventory",
+      help: "Stock on hand at the start of the week — last week's leftovers. Sold first, before this week's new deliveries." },
+    { label: "Market Demand", key: "demand",
+      help: "Units customers wanted this week. Hidden until the admin locks the week — you order without knowing it." },
+    { label: "Number of Sales", key: "sales",
+      help: "Units actually sold = min(demand, beginning inventory + deliveries). You cannot sell what you do not have. Example: demand 40, but only 30 units on hand → 30 sales." },
+    { label: "Selling Price per Unit (£)", key: "sellingPrice",
+      help: "Cash earned per unit sold. Set by the game and constant throughout." },
+    { label: "Revenue (£)", key: "revenue",
+      help: "Sales × selling price. Cash earned from customers this week. Example: 30 sales at £6 each = £180 revenue." },
+    { label: "Ending Inventory on hand", key: "endingInventory",
+      help: "Unsold units left at week-end. Carry to next week's Beginning Inventory, but you pay holding cost on every one of them." },
+    { label: "Cost of Missed Demand (£)", key: "missedDemandCost",
+      help: "Penalty for stockouts: missed units × the per-unit penalty rate (set by the admin). On top of this penalty, you also lose the revenue you would have earned from those sales." },
+    { label: "Inventory Holding Cost (£)", key: "holdingCost",
+      help: "Storage cost on leftover stock = ending inventory × the per-unit holding rate (set by the admin). Hold too much and it eats profit; hold too little and you risk stockouts." },
+    { label: "Ending Cash Balance (£)", key: "endingCash",
+      help: "Starting Cash − Order Cost − Missed-Demand Cost − Holding Cost + Revenue. Carries into next week's Starting Cash." }
 ];
 
 // Fresh ledger for a brand-new team (must match the structure the rules validate)
@@ -649,11 +700,14 @@ async function submitOrder(e) {
 
 // Formats one matrix cell. Demand stays hidden ("-") until the admin locks the week.
 function metricCell(team, w, m) {
+    // Selling price is a game constant -- show it for every week, no storage needed.
+    if (m.key === 'sellingPrice') return REVENUE_PER_UNIT.toFixed(2);
+
     let val = team.weeklyStats[w][m.key];
     if (m.key === 'demand') {
         return team.lockedWeeks?.[w] ? String(val) : '-';
     }
-    if (typeof val === 'number' && (m.key.includes('Cost') || m.key.includes('Cash'))) {
+    if (typeof val === 'number' && (m.key.includes('Cost') || m.key.includes('Cash') || m.key === 'revenue')) {
         return val.toFixed(2);
     }
     return val;
@@ -669,7 +723,11 @@ function renderLedger() {
     document.getElementById('header-weeks').innerHTML = headers;
 
     METRIC_SCHEMA.forEach(m => {
-        html += `<tr><td style="text-align: left;">${m.label}</td>`;
+        const helpAttr = (m.help || '').replace(/"/g, '&quot;');
+        const icon = m.help
+            ? ` <span class="metric-info" tabindex="0" role="button" aria-label="What is ${m.label}?" data-help="${helpAttr}">i</span>`
+            : '';
+        html += `<tr><td style="text-align: left;"><span class="metric-label">${m.label}${icon}</span></td>`;
         for (let w = 1; w <= TOTAL_WEEKS; w++) {
             html += `<td style="${w === currentWeek ? 'background: #eff6ff;' : ''}">${metricCell(team, w, m)}</td>`;
         }
