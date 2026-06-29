@@ -211,6 +211,22 @@
                         <tbody></tbody>
                     </table>
                 </div>
+
+                <div class="card" style="border-left: 5px solid var(--danger);">
+                    <h2 style="color: var(--danger);">⚠️ Danger Zone — Reset Slot</h2>
+                    <p style="color:#64748b; font-size:0.9em; margin-top:0;">
+                        Wipes <strong>every team</strong> in
+                        <strong id="reset-slot-name">this slot</strong> — team names, submissions,
+                        and all weekly data — and sets the slot back to Week 1.
+                        This <strong>cannot be undone</strong>.
+                    </p>
+                    <p id="reset-auth-note" style="color:#64748b; font-size:0.82em; margin-top:-6px;"></p>
+                    <button id="reset-slot-btn"
+                            style="background: var(--danger); padding: 14px; font-size:1.05rem; width:100%;"
+                            onclick="resetCurrentSlot()">
+                        🗑️ Reset This Slot (Wipe All Teams &amp; Data)
+                    </button>
+                </div>
             </div>
 
             <!-- TAB 2: Leaderboard -->
@@ -286,6 +302,9 @@ import {
     getFirestore, doc, getDoc, getDocs, setDoc, updateDoc,
     collection, onSnapshot, writeBatch
 } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+import {
+    getFunctions, httpsCallable
+} from "https://www.gstatic.com/firebasejs/11.0.2/firebase-functions.js";
 
 // -------- THE ONLY THING YOU NEED TO EDIT --------
 // Paste your Firebase web config here.
@@ -304,6 +323,7 @@ const firebaseConfig = {
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getFirestore(app);
+const functions = getFunctions(app);
 
 // -------- CONTROLLER (ADMIN) CREDENTIALS --------
 // One controller username + password is used for every slot.
@@ -645,6 +665,7 @@ onAuthStateChanged(auth, (user) => {
         document.getElementById('logged-in-user').innerText = `admin (controller) · ${slotLabel(GAME_ID)}`;
         document.getElementById('admin-panel').classList.add('active-view');
         document.getElementById('player-panel').classList.remove('active-view');
+        updateResetPanelLabels();
         ensureGameDoc();      // create the shared game on first controller login
         listenGameDoc();
         listenAllTeams();
@@ -1015,6 +1036,110 @@ async function processCurrentWeek() {
 }
 
 // =====================================================================
+//  ADMIN: RESET SLOT  (one-click wipe of every team + game data)
+// =====================================================================
+// Two layers of data exist per slot:
+//   1) Firestore: games/{slot} + games/{slot}/teams/*   <- wiped here, client-side
+//   2) Firebase Auth: one login per team                <- can ONLY be removed by
+//      the Admin SDK (a Cloud Function). If a 'resetSlot' callable is deployed,
+//      we use it for a COMPLETE reset (data + logins). Otherwise we fall back to
+//      wiping Firestore only, and warn that team names stay reserved in Auth.
+async function resetCurrentSlot() {
+    if (currentUserRole !== 'admin') return;
+    if (!GAME_ID) { toast("No slot selected", "", "danger"); return; }
+
+    const slotName = slotLabel(GAME_ID);
+    const teamCount = Object.keys(teamsData).length;
+
+    // Strong guard against accidental clicks: must type the slot name to confirm.
+    const typed = prompt(
+        `This will PERMANENTLY DELETE all ${teamCount} team(s) and every bit of ` +
+        `game data in "${slotName}", and reset it to Week 1.\n\n` +
+        `This cannot be undone.\n\n` +
+        `Type the slot name exactly to confirm:\n${slotName}`
+    );
+    if (typed === null) return;                 // cancelled
+    if (typed.trim() !== slotName) {
+        toast("Reset cancelled", "Slot name did not match.", "warn");
+        return;
+    }
+
+    const btn = document.getElementById('reset-slot-btn');
+    btn.disabled = true; btn.innerText = "Resetting…";
+
+    try {
+        // ---- Preferred path: complete server-side reset (data + auth logins) ----
+        let serverReset = false;
+        try {
+            const callReset = httpsCallable(functions, 'resetSlot');
+            const res = await callReset({ slotId: GAME_ID });
+            serverReset = true;
+            const n = res?.data?.deletedTeams ?? teamCount;
+            toast(`✅ ${slotName} fully reset`,
+                  `${n} team(s) and their logins removed. Back to Week 1.`,
+                  'success');
+        } catch (fnErr) {
+            // Function not deployed / not reachable -> fall back to Firestore-only wipe.
+            const code = fnErr?.code || '';
+            const noFunction =
+                code.includes('not-found') || code.includes('internal') ||
+                code.includes('unavailable') || code.includes('functions/');
+            if (!noFunction) throw fnErr;       // a real error (e.g. permission) -> surface it
+            await wipeSlotFirestore(GAME_ID);
+            toast(`♻️ ${slotName} data wiped`,
+                  `Teams & stats cleared. Note: team logins still exist in Auth ` +
+                  `(deploy the resetSlot function to free up the names).`,
+                  'warn');
+        }
+
+        // Defensive: if the server path ran, also make sure Firestore is clean.
+        if (serverReset) {
+            try { await wipeSlotFirestore(GAME_ID, /*skipTeams*/ true); } catch (e) {}
+        }
+    } catch (err) {
+        toast("Reset failed", err.code || err.message, "danger");
+    } finally {
+        btn.disabled = false;
+        btn.innerText = "🗑️ Reset This Slot (Wipe All Teams & Data)";
+    }
+}
+
+// Deletes every team doc in the slot and resets the game doc to a fresh Week 1.
+// skipTeams=true only resets the game doc (used after a server-side team wipe).
+async function wipeSlotFirestore(slotId, skipTeams = false) {
+    if (!skipTeams) {
+        const snap = await getDocs(collection(db, 'games', slotId, 'teams'));
+        // writeBatch caps at 500 ops; chunk to be safe for large cohorts.
+        const refs = snap.docs.map(d => doc(db, 'games', slotId, 'teams', d.id));
+        for (let i = 0; i < refs.length; i += 450) {
+            const batch = writeBatch(db);
+            refs.slice(i, i + 450).forEach(r => batch.delete(r));
+            await batch.commit();
+        }
+    }
+    // Reset the shared game doc to a clean starting state.
+    await setDoc(doc(db, 'games', slotId), {
+        currentWeek: 1,
+        status: "active",
+        settings: { missedPenalty: 2, holdingCost: 1, demands: {} }
+    });
+}
+
+// Keep the danger-zone labels in sync with the slot the controller is in.
+function updateResetPanelLabels() {
+    const nameEl = document.getElementById('reset-slot-name');
+    const noteEl = document.getElementById('reset-auth-note');
+    if (nameEl) nameEl.innerText = GAME_ID ? slotLabel(GAME_ID) : 'this slot';
+    if (noteEl) {
+        noteEl.innerText =
+            'Team logins are stored in Firebase Auth and can only be removed by the ' +
+            'resetSlot Cloud Function. Without it, data is cleared but the same team ' +
+            'names cannot be re-created in this slot.';
+    }
+}
+
+
+// =====================================================================
 //  ADMIN: RENDERING
 // =====================================================================
 function renderAdminControlsPanel() {
@@ -1121,6 +1246,7 @@ window.adminSignIn = adminSignIn;
 window.logout = logout;
 window.switchAdminTab = switchAdminTab;
 window.processCurrentWeek = processCurrentWeek;
+window.resetCurrentSlot = resetCurrentSlot;
 window.updateDynamicSupplierDetails = updateDynamicSupplierDetails;
 window.submitOrder = submitOrder;
 window.downloadLeaderboardCSV = downloadLeaderboardCSV;
