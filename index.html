@@ -204,6 +204,36 @@
                     <button style="background: #8b5cf6; padding: 15px; font-size:1.1rem; width:100%;" id="process-week-btn" onclick="processCurrentWeek()">Lock Teams & Process Week</button>
                 </div>
 
+                <div class="card" style="border-left: 5px solid #0ea5e9;">
+                    <h2>🔮 Projected Inventory Preview (Week <span id="preview-week-target">1</span>)</h2>
+                    <p style="color:#64748b; font-size:0.9em; margin-top:-8px;">
+                        Live, read-only projection of what each team's inventory, sales and stockouts would look like
+                        <strong>if you processed the week right now</strong> — based on each team's actual submission
+                        (or their default of "no order" if they haven't submitted yet) and the Demand value you've entered above.
+                        Nothing here is saved. Adjust the Demand field and watch this table update instantly, so you can
+                        calibrate demand against what teams actually ordered before you commit with "Lock Teams & Process Week".
+                    </p>
+                    <div style="overflow-x: auto;">
+                        <table id="projected-inventory-table">
+                            <thead>
+                                <tr>
+                                    <th style="text-align:left;">Team</th>
+                                    <th>Submitted?</th>
+                                    <th>Supplier</th>
+                                    <th>Ordered</th>
+                                    <th>Delivered</th>
+                                    <th>Beg. Inventory</th>
+                                    <th>Avail. for Sale</th>
+                                    <th>Proj. Sales</th>
+                                    <th>Proj. Ending Inv.</th>
+                                    <th>Proj. Missed Demand</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
                 <div class="card">
                     <h2>📋 Team Submission Checklist</h2>
                     <table id="status-table">
@@ -337,8 +367,8 @@ const ADMIN_PASSWORD = "sigmaetaiimt26";
 // =====================================================================
 // ----- SLOTS: 10 live game slots + 10 trial slots. Edit freely. -----
 const SLOTS = [
-    ...Array.from({ length: 10 }, (_, i) => `Slot ${i + 1}`),
-    ...Array.from({ length: 10 }, (_, i) => `Trial ${i + 1}`)
+    ...Array.from({ length: 12 }, (_, i) => `Slot ${i + 1}`),
+    ...Array.from({ length: 12 }, (_, i) => `Trial ${i + 1}`)
 ];
 
 let GAME_ID = null;                  // set at login to the chosen slot's id
@@ -1140,6 +1170,103 @@ function updateResetPanelLabels() {
 
 
 // =====================================================================
+//  ADMIN: PROJECTED INVENTORY PREVIEW  (read-only "what if I processed now")
+// =====================================================================
+// Mirrors the exact math in processCurrentWeek(), but never writes anything.
+// Lets the controller see the resulting inventory/sales/stockouts for every
+// team BEFORE locking the week, so demand can be tuned against what teams
+// actually ordered.
+function computeProjectedStats(team, week, demand, missedPenalty, holdingCost) {
+    let sub = team.submissions?.[week] || { supplier: 'X', qty: 0, submitted: false };
+    let supplier   = sub.submitted ? sub.supplier : 'X';
+    let orderedQty = sub.submitted ? sub.qty : 0;
+
+    let deliveredQty = 0;
+    for (let w = 1; w <= week; w++) {
+        let pastSub = team.submissions?.[w];
+        if (pastSub && pastSub.submitted) {
+            let lead = SUPPLIERS[pastSub.supplier].leadTime;
+            if (w + lead === week) deliveredQty += pastSub.qty;
+        }
+    }
+
+    let totalOrderCost = orderedQty * (SUPPLIERS[supplier] ? SUPPLIERS[supplier].cost : 0);
+
+    // Week 1's beginning inventory/starting cash live on weeklyStats[1] itself;
+    // for later weeks they come from the previous (already-locked) week.
+    let beginningInventory = week > 1
+        ? team.weeklyStats[week - 1].endingInventory
+        : team.weeklyStats[week].beginningInventory;
+    let startingCash = week > 1
+        ? team.weeklyStats[week - 1].endingCash
+        : team.weeklyStats[week].startingCash;
+
+    let availableForSale = beginningInventory + deliveredQty;
+    let sales             = Math.min(demand, availableForSale);
+    let endingInventory   = availableForSale - sales;
+    let missedDemand      = Math.max(0, demand - availableForSale);
+    let missedDemandCost  = missedDemand * missedPenalty;
+    let holdCost          = endingInventory * holdingCost;
+    let revenue           = sales * REVENUE_PER_UNIT;
+    let endingCash        = startingCash - totalOrderCost - missedDemandCost - holdCost + revenue;
+
+    return {
+        submitted: !!sub.submitted, supplier, orderedQty, deliveredQty, totalOrderCost,
+        beginningInventory, availableForSale, sales, endingInventory,
+        missedDemand, missedDemandCost, holdingCost: holdCost, revenue,
+        startingCash, endingCash
+    };
+}
+
+function renderProjectedInventoryPanel() {
+    const tbody = document.querySelector('#projected-inventory-table tbody');
+    if (!tbody) return;
+
+    const weekEl = document.getElementById('preview-week-target');
+    if (weekEl) weekEl.innerText = currentWeek <= TOTAL_WEEKS ? currentWeek : TOTAL_WEEKS;
+
+    if (currentWeek > TOTAL_WEEKS) {
+        tbody.innerHTML = `<tr><td colspan="10" style="color:#64748b;">Game Over — no more weeks to process.</td></tr>`;
+        return;
+    }
+
+    let uids = Object.keys(teamsData);
+    if (uids.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="10" style="color:#64748b;">No teams have been set up yet.</td></tr>`;
+        return;
+    }
+
+    const demand        = parseInt(document.getElementById('admin-demand')?.value) || 0;
+    const missedPenalty = parseFloat(document.getElementById('admin-penalty-cost')?.value) || 0;
+    const holdingCost   = parseFloat(document.getElementById('admin-holding-cost')?.value) || 0;
+
+    let html = "";
+    uids.forEach(uid => {
+        let team = teamsData[uid];
+        let p = computeProjectedStats(team, currentWeek, demand, missedPenalty, holdingCost);
+        let subBadge = p.submitted
+            ? `<span style="color:var(--success)">✅</span>`
+            : `<span style="color:var(--warning)">⏳ default (X)</span>`;
+        let missedDisplay = p.missedDemand > 0
+            ? `<strong style="color:var(--danger);">${p.missedDemand}</strong>`
+            : p.missedDemand;
+        html += `<tr>
+            <td style="text-align:left;"><strong>${team.teamName}</strong></td>
+            <td>${subBadge}</td>
+            <td>${p.supplier}</td>
+            <td>${p.orderedQty}</td>
+            <td>${p.deliveredQty}</td>
+            <td>${p.beginningInventory}</td>
+            <td>${p.availableForSale}</td>
+            <td>${p.sales}</td>
+            <td><strong>${p.endingInventory}</strong></td>
+            <td>${missedDisplay}</td>
+        </tr>`;
+    });
+    tbody.innerHTML = html;
+}
+
+// =====================================================================
 //  ADMIN: RENDERING
 // =====================================================================
 function renderAdminControlsPanel() {
@@ -1157,6 +1284,8 @@ function renderAdminControlsPanel() {
     }
     const tbody = document.querySelector('#status-table tbody');
     if (tbody) tbody.innerHTML = html;
+
+    renderProjectedInventoryPanel();
 }
 
 function getSortedLeaderboardArray() {
@@ -1290,6 +1419,15 @@ window.downloadPlayerMatrixCSV = downloadPlayerMatrixCSV;
 document.getElementById('login-password').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') doLogin();
 });
+
+// Keep the Projected Inventory Preview live as the controller tweaks
+// demand / penalty / holding cost, ahead of actually locking the week.
+(function wireProjectedInventoryPreview() {
+    ['admin-demand', 'admin-penalty-cost', 'admin-holding-cost'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', renderProjectedInventoryPanel);
+    });
+})();
 </script>
 </body>
 </html>
